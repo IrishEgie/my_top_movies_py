@@ -86,7 +86,7 @@ def get_new_movie_id():
 
 @app.route("/")
 def home():
-    movies = Movie.query.all()
+    movies = Movie.query.order_by(Movie.ranking.desc()).all()
     return render_template("index.html", movies=movies)
 
 @app.route("/add_movie", methods=["POST"])
