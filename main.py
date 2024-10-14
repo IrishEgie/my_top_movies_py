@@ -89,6 +89,28 @@ def home():
     movies = Movie.query.all()
     return render_template("index.html", movies=movies)
 
+@app.route("/add_movie", methods=["POST"])
+def add_movie():
+    title = request.form.get('title')
+    year = request.form.get('year')
+    description = request.form.get('description')
+    rating = request.form.get('rating')
+    ranking = request.form.get('ranking')
+    review = request.form.get('review')
+    img_url = request.form.get('img_url')
+
+    movie_entry("create", 
+                 title=title, 
+                 year=int(year), 
+                 description=description, 
+                 rating=float(rating), 
+                 ranking=float(ranking), 
+                 review=review, 
+                 img_url=img_url)
+
+    return redirect(url_for('home'))
+
+
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
 def edit(id):
     movie = movie_entry("read", id=id)
