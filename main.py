@@ -6,10 +6,10 @@ from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 import requests as rq
 import os
-from flask import session
 
+# Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '8BYkEfBA6O6donzWlSihBXox7C0sKR6b')
 Bootstrap5(app)
 
 # Configure the SQLite database
@@ -47,52 +47,34 @@ def create_db():
 
 def search_movie(title):
     url = f"https://api.themoviedb.org/3/search/movie?query={title}&include_adult=false&language=en-US&page=1"
-
     headers = {
         "accept": "application/json",
         "Authorization": f"Bearer {os.getenv('API_READ_ACCESS')}"
     }
-
+    
     response = rq.get(url, headers=headers)
-    print(response.text)
     if response.status_code == 200:
         return response.json().get('results', [])
-    else:
-        return []  # Return an empty list on error
+    return []  # Return an empty list on error
 
-    
-
-def movie_entry(action, id=None, title=None, year=None, description=None, rating=None, ranking=None, review=None, img_url=None):
+def movie_entry(action, **kwargs):
     with app.app_context():
         if action == "create":
-            new_movie = Movie(
-                title=title,
-                year=year,
-                description=description,
-                rating=rating,
-                ranking=ranking,
-                review=review,
-                img_url=img_url
-            )
+            new_movie = Movie(**kwargs)
             db.session.add(new_movie)
             db.session.commit()
             return new_movie
         elif action == "read":
-            return Movie.query.get(id)
+            return Movie.query.get(kwargs['id'])
         elif action == "update":
-            movie = Movie.query.get(id)
+            movie = Movie.query.get(kwargs['id'])
             if movie:
-                movie.title = title
-                movie.year = year
-                movie.description = description
-                movie.rating = rating
-                movie.ranking = ranking
-                movie.review = review
-                movie.img_url = img_url
+                for key, value in kwargs.items():
+                    setattr(movie, key, value)
                 db.session.commit()
             return movie
         elif action == "delete":
-            movie = Movie.query.get(id)
+            movie = Movie.query.get(kwargs['id'])
             if movie:
                 db.session.delete(movie)
                 db.session.commit()
@@ -109,11 +91,11 @@ def home():
 
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
 def edit(id):
-    movie = movie_entry("read", id)
+    movie = movie_entry("read", id=id)
     form = MovieForm(obj=movie)
 
     if form.validate_on_submit():
-        movie_entry("update", id,
+        movie_entry("update", id=id,
                      title=form.title.data,
                      year=int(form.year.data),
                      description=form.description.data,
@@ -121,7 +103,6 @@ def edit(id):
                      ranking=float(form.ranking.data),
                      review=form.review.data,
                      img_url=form.img_url.data)
-
         return redirect(url_for('home'))
 
     return render_template("edit.html", form=form, movie=movie)
@@ -136,22 +117,14 @@ def add():
     form = MovieForm()
     if form.validate_on_submit():
         title = form.title.data
-        # Redirect to the select route with the title as an argument
         return redirect(url_for('select', title=title))
-    else:
-        print(form.errors)  # This will show any validation errors
-
     return render_template("add.html", form=form)
-
 
 @app.route("/select")
 def select():
     title = request.args.get('title')
     movies = search_movie(title)  # Fetch results based on the title
     return render_template("select.html", movies=movies)
-
-
-
 
 if __name__ == '__main__':
     create_db()  # Ensure the database and tables are created
