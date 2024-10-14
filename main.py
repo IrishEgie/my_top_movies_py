@@ -4,6 +4,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
+import requests as rq
+import os
+from flask import session
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
@@ -29,18 +32,35 @@ class Movie(db.Model):
 
 class MovieForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
-    year = StringField('Year', validators=[DataRequired()])
-    description = StringField('Description', validators=[DataRequired()])
-    rating = StringField('Rating', validators=[DataRequired()])
-    ranking = StringField('Ranking', validators=[DataRequired()])
-    review = StringField('Review', validators=[DataRequired()])
-    img_url = StringField('Image URL', validators=[DataRequired()])
-    submit = SubmitField('Update Movie')
+    year = StringField('Year')
+    description = StringField('Description')
+    rating = StringField('Rating')
+    ranking = StringField('Ranking')
+    review = StringField('Review')
+    img_url = StringField('Image URL')
+    submit = SubmitField('Submit')
 
 # Create the database and the movies table
 def create_db():
     with app.app_context():
         db.create_all()
+
+def search_movie(title):
+    url = f"https://api.themoviedb.org/3/search/movie?query={title}&include_adult=false&language=en-US&page=1"
+
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {os.getenv('API_READ_ACCESS')}"
+    }
+
+    response = rq.get(url, headers=headers)
+    print(response.text)
+    if response.status_code == 200:
+        return response.json().get('results', [])
+    else:
+        return []  # Return an empty list on error
+
+    
 
 def movie_entry(action, id=None, title=None, year=None, description=None, rating=None, ranking=None, review=None, img_url=None):
     with app.app_context():
@@ -115,19 +135,23 @@ def delete(id):
 def add():
     form = MovieForm()
     if form.validate_on_submit():
-        new_id = get_new_movie_id()  # Get the new ID
-        movie_entry("create", 
-                    title=form.title.data,
-                    year=int(form.year.data),
-                    description=form.description.data,
-                    rating=float(form.rating.data),
-                    ranking=float(form.ranking.data),
-                    review=form.review.data,
-                    img_url=form.img_url.data)
+        title = form.title.data
+        # Redirect to the select route with the title as an argument
+        return redirect(url_for('select', title=title))
+    else:
+        print(form.errors)  # This will show any validation errors
 
-        return redirect(url_for('home'))
-    
     return render_template("add.html", form=form)
+
+
+@app.route("/select")
+def select():
+    title = request.args.get('title')
+    movies = search_movie(title)  # Fetch results based on the title
+    return render_template("select.html", movies=movies)
+
+
+
 
 if __name__ == '__main__':
     create_db()  # Ensure the database and tables are created
